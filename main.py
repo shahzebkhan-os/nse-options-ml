@@ -64,11 +64,12 @@ def main():
     
     # 4. Train Model
     print("Training Neural Network...")
-    predictor.build_model((X_train.shape[1], X_train.shape[2]))
-    predictor.train(X_train, y_train, epochs=20) # Low epochs for speed demo
+    predictor.build_model()
+    predictor.train(X_train, y_train)
     
     # 5. Evaluate/Predict
-    loss, accuracy = predictor.model.evaluate(X_test, y_test, verbose=0)
+    # Sklearn score returns accuracy
+    accuracy = predictor.model.score(X_test, y_test)
     print(f"\nTest Accuracy: {accuracy:.2%}")
     
     predictions = predictor.predict(X_test)
@@ -76,9 +77,9 @@ def main():
     # 6. Suggest for Latest Data (Tomorrow's prediction)
     last_row = df.iloc[[-1]][feature_cols].values
     last_row_scaled = scaler.transform(last_row)
-    last_row_reshaped = np.reshape(last_row_scaled, (1, 1, len(feature_cols)))
+    # MLP expects 2D array [n_samples, n_features]
     
-    next_day_pred = predictor.predict(last_row_reshaped)[0][0]
+    next_day_pred = predictor.predict(last_row_scaled)[0]
     current_price = df['Close'].iloc[-1]
     
     suggest_option_chain(ticker, next_day_pred, current_price)
