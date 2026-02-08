@@ -3,21 +3,21 @@ import json
 import pandas as pd
 import time
 
+from curl_cffi import requests
+import json
+import pandas as pd
+import time
+
 class NSEScraper:
     def __init__(self):
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1'
+            'authority': 'www.nseindia.com',
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'accept-language': 'en-US,en;q=0.9',
+            'cache-control': 'max-age=0',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         }
-        self.session = requests.Session()
+        self.session = requests.Session(impersonate="chrome120")
         self.session.headers.update(self.headers)
         self._refresh_cookies()
 
@@ -25,7 +25,7 @@ class NSEScraper:
         try:
             # NSE requires visiting the homepage first to set cookies
             self.session.get("https://www.nseindia.com", timeout=10)
-        except:
+        except Exception as e:
             pass
 
     def fetch_option_chain(self, symbol="NIFTY"):
@@ -35,26 +35,22 @@ class NSEScraper:
             url = f"https://www.nseindia.com/api/option-chain-equities?symbol={symbol}"
             
         try:
-            # API requests need slightly different headers (JSON)
-            api_headers = self.headers.copy()
-            api_headers.update({
-                'Accept': '*/*',
-                'Referer': f'https://www.nseindia.com/get-quote/derivatives?symbol={symbol}',
-                'Sec-Fetch-Dest': 'empty',
-                'Sec-Fetch-Mode': 'cors',
-                'Sec-Fetch-Site': 'same-origin',
-            })
+            # API headers must match what a browser sends for XHR
+            # IMPERSONATE ONLY: Do NOT set explicit headers that clash with impersonation
+            # curl_cffi handles the TLS fingerprint and basic headers.
+            # We just add specific ones if needed.
             
-            response = self.session.get(url, headers=api_headers, timeout=10)
+            # First request might fail or be redirected, so we try with fresh cookies if needed
+            response = self.session.get(url, timeout=10)
             
             if response.status_code == 401:
                 self._refresh_cookies()
-                response = self.session.get(url, headers=api_headers, timeout=10)
+                response = self.session.get(url, timeout=10)
                 
             if response.status_code == 200:
                 return response.json()
             return None
-        except:
+        except Exception as e:
             return None
 
     def get_atm_strike(self, option_data, spot_price):
