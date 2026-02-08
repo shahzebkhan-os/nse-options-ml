@@ -6,46 +6,55 @@ import time
 class NSEScraper:
     def __init__(self):
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': '*/*',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
             'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive'
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1'
         }
         self.session = requests.Session()
         self.session.headers.update(self.headers)
-        
-        # Initialize session with home page to get cookies
+        self._refresh_cookies()
+
+    def _refresh_cookies(self):
         try:
+            # NSE requires visiting the homepage first to set cookies
             self.session.get("https://www.nseindia.com", timeout=10)
         except:
-            print("Warning: NSE Homepage connection failed. Scraper might be blocked.")
+            pass
 
     def fetch_option_chain(self, symbol="NIFTY"):
-        """
-        Fetches live option chain data from NSE for a given symbol.
-        Symbol: 'NIFTY', 'BANKNIFTY', or Stock Ticker (e.g. 'RELIANCE')
-        """
-        # Determine URL
         if symbol in ['NIFTY', 'BANKNIFTY', 'FINNIFTY']:
             url = f"https://www.nseindia.com/api/option-chain-indices?symbol={symbol}"
         else:
             url = f"https://www.nseindia.com/api/option-chain-equities?symbol={symbol}"
             
         try:
-            response = self.session.get(url, timeout=10)
+            # API requests need slightly different headers (JSON)
+            api_headers = self.headers.copy()
+            api_headers.update({
+                'Accept': '*/*',
+                'Referer': f'https://www.nseindia.com/get-quote/derivatives?symbol={symbol}',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-origin',
+            })
+            
+            response = self.session.get(url, headers=api_headers, timeout=10)
+            
             if response.status_code == 401:
-                # Refresh cookies
-                self.session.get("https://www.nseindia.com", timeout=5)
-                response = self.session.get(url, timeout=10)
+                self._refresh_cookies()
+                response = self.session.get(url, headers=api_headers, timeout=10)
                 
-            if response.status_code != 200:
-                print(f"Failed to fetch Option Chain: {response.status_code}")
-                return None
-                
-            data = response.json()
-            return data
-        except Exception as e:
-            print(f"Error fetching NSE Option Chain: {e}")
+            if response.status_code == 200:
+                return response.json()
+            return None
+        except:
             return None
 
     def get_atm_strike(self, option_data, spot_price):

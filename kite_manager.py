@@ -66,3 +66,42 @@ class KiteDataManager:
         except Exception as e:
             print(f"Error fetching instruments: {e}")
             return []
+
+    def get_option_quote(self, symbol, strike, type="CE", expiry=None):
+        """
+        Finds the option symbol and fetches quote.
+        symbol: NIFTY, BANKNIFTY
+        strike: 22000
+        type: CE or PE
+        """
+        # 1. Fetch all NFO instruments
+        instruments = self.get_instruments("NFO")
+        if not instruments: return None
+        
+        # 2. Filter for symbol and strike
+        # Note: Kite instruments are a list of dicts.
+        # We need to find the nearest expiry if not provided.
+        
+        candidates = [
+            i for i in instruments 
+            if i['name'] == symbol and i['strike'] == float(strike) and i['instrument_type'] == type
+        ]
+        
+        if not candidates:
+            print(f"No option found for {symbol} {strike} {type}")
+            return None
+            
+        # Sort by expiry to get the nearest one (current month)
+        candidates.sort(key=lambda x: x['expiry'])
+        nearest_option = candidates[0]
+        tradingsymbol = nearest_option['tradingsymbol']
+        
+        # 3. Get Quote
+        quote = self.get_quote(f"NFO:{tradingsymbol}")
+        if quote:
+            return {
+                'symbol': tradingsymbol,
+                'price': quote['last_price'],
+                'oi': quote['oi']
+            }
+        return None
